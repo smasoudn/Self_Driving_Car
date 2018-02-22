@@ -118,6 +118,7 @@ catkin_package(
 include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
+  /usr/local/include
 )
 
 ## Declare a C++ library
@@ -199,5 +200,5 @@ include_directories(
 # catkin_add_nosetests(test)
 
 add_Executable(mpc_server src/mpc_service.cpp src/MPC.cpp)
-target_link_libraries(mpc_server ${catkin_LIBRARIES})
+target_link_libraries(mpc_server ${catkin_LIBRARIES} ipopt)
 add_dependencies(mpc_server mpc_gencpp)
