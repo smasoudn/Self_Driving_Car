@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped
 import math
@@ -62,13 +62,23 @@ class DBWNode(object):
         self.twist_cmd = None
         self.waypoints = None
         self.dbw_enabled = None
-        self.current_pose = None
+        
+        self.ptsx = []
+        self.ptsy = [] 
+        self.px = 0.0
+        self.py = 0.0
+        self.psi = 0.0 
+        self.speed = 0.0 
+        self.steering = 0.0 
+        self.throttle = 0.0
         
         # TODO: Subscribe to all the topics you need to
         rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb)
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb)
         rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb)
+        rospy.Subscriber('/vehicle/throttle_report', Float32 , self.throttle_report_cb)
+        rospy.Subscriber('/vehicle/steering_report', SteeringReport, self.steering_report_cb)
 
         self.loop()
 
@@ -79,36 +89,44 @@ class DBWNode(object):
         self.dbw_enabled = msg.data
 
     def waypoints_cb(self, msg):
+        self.ptsx = []
+        self.ptsy = []
         for i in range(len(msg.waypoints)):
             self.ptsx.append(msg.waypoints[i].pose.pose.position.x)
             self.ptsy.append(msg.waypoints[i].pose.pose.position.y)
-    
-    
         self.waypoints = msg.waypoints
 
     def current_pose_cb(self, msg):
         self.px = msg.pose.position.x
         self.py = msg.pose.position.y
-        self.psi = atan2(msg.pose.orientation.w, msg.pose.orientation.z)
+        self.psi = math.atan2(msg.pose.orientation.w, msg.pose.orientation.z)
+
+    def throttle_report_cb(self, msg):
+        self.throttle = msg.data
 
 
+    def steering_report_cb(self, msg):
+        self.steering = msg.steering_wheel_angle
+        self.speed = msg.speed
 
     def loop(self):
         rate = rospy.Rate(50) # 50Hz
         while not rospy.is_shutdown():
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
-            throttle, brake, steering = self.controller.control(ptsx, 
-                                                                ptsy, 
-                                                                px, 
-                                                                py, 
-                                                                psi, 
-                                                                speed, 
-                                                                steering, 
-                                                                throttle
-                                                                )
             if self.dbw_enabled:
-                self.publish(throttle, brake, steer)
+                throttle, brake, steering = self.controller.control(self.ptsy, 
+                                                                self.ptsx, 
+                                                                self.py, 
+                                                                self.px, 
+                                                                self.psi, 
+                                                                self.speed, 
+                                                                self.steering, 
+                                                                self.throttle
+                                                                )
+                throttle = 0.1
+                brake = 0.0
+                self.publish(throttle, brake, steering)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):

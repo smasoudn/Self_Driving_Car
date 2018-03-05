@@ -70,7 +70,9 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
 
   double steer_value = req.steering;
   double throttle_value = req.throttle;
-  
+
+
+
   //  MPC initialized
   MPC mpc_agent;
   
@@ -88,6 +90,7 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
     next_x_val.push_back(_ptsx[i]);
     next_y_val.push_back(_ptsy[i]);
   }
+
 
   // Account for delay
   double latency = 0.1; // 100 mili sec.
@@ -112,9 +115,8 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
   double cte = polyeval(coeffs, px) - y;
   double epsi = psi - atan(coeffs[1]);
 
-
   Eigen::VectorXd state(6);
-  //state << x, y, psi, v, cte, epsi;
+  state << x, y, psi, v, cte, epsi;
 
 
   vector<double> result = mpc_agent.Solve(state, coeffs);
