@@ -26,17 +26,17 @@ const double Lf = 2.67;
 // The reference velocity is set to 40 mph.
 double ref_cte = 0;
 double ref_epsi = 0;
-double ref_v = 70;
+double ref_v = 50;
 
 
 // Cost weights
 const double w_cte = 10.0;
-const double w_epsi = 50.0;
+const double w_epsi = 100.0;
 const double w_v = 1.0;
-const double w_thr = 10.0;
-const double w_str = 3000.0;
-const double w_dif_thr = 10.0;
-const double w_dif_str = 3000.0;
+const double w_thr = 1.0;
+const double w_str = 1000.0;
+const double w_dif_thr = 1.0;
+const double w_dif_str = 1000.0;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -283,7 +283,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Cost
   auto cost = solution.obj_value;
-  std::cout << "Cost " << cost << std::endl;
+  //std::cout << "Cost " << cost << std::endl;
 
   // TODO: Return the first actuator values. The variables can be accessed with
   // `solution.x[i]`.

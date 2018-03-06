@@ -99,7 +99,8 @@ class DBWNode(object):
     def current_pose_cb(self, msg):
         self.px = msg.pose.position.x
         self.py = msg.pose.position.y
-        self.psi = math.atan2(msg.pose.orientation.w, msg.pose.orientation.z)
+        self.psi =  2.0 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
+        rospy.logerr("x: {}  y: {}  psi: {}".format(self.px, self.py, self.psi))
 
     def throttle_report_cb(self, msg):
         self.throttle = msg.data
@@ -115,16 +116,16 @@ class DBWNode(object):
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
             if self.dbw_enabled:
-                throttle, brake, steering = self.controller.control(self.ptsy, 
-                                                                self.ptsx, 
-                                                                self.py, 
+                throttle, brake, steering = self.controller.control(self.ptsx, 
+                                                                self.ptsy, 
                                                                 self.px, 
+                                                                self.py, 
                                                                 self.psi, 
                                                                 self.speed, 
                                                                 self.steering, 
                                                                 self.throttle
                                                                 )
-                throttle = 0.1
+                throttle = 0.5
                 brake = 0.0
                 self.publish(throttle, brake, steering)
             rate.sleep()

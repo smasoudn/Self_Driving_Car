@@ -9,3 +9,5 @@ float64 throttle
 ---
 float64 steering
 float64 throttle
+float64[] mpc_x
+float64[] mpc_y
