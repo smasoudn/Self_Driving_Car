@@ -92,7 +92,7 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
 
 
   // Account for delay
-  double latency = 0.5; // 100 mili sec.
+  double latency = 0.6; // 100 mili sec.
 
   double delta = - steer_value;
   double npx = px + v * cos(psi) * latency;

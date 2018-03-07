@@ -10,6 +10,7 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
+import matplotlib.pyplot as plt
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -49,6 +50,11 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
+
+        plt.axis([-100, 100, -100, 100])
+        self.axes = plt.gca()        
+        plt.ion()
+
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -70,6 +76,12 @@ class TLDetector(object):
         """
         self.has_image = True
         self.camera_image = msg
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")        
+        cv2.imshow("camera", cv_image)
+        cv2.waitKey(1)
+
+
+
         light_wp, state = self.process_traffic_lights()
 
         '''
@@ -117,8 +129,9 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")        
 
+        
         #Get classification
         return self.light_classifier.get_classification(cv_image)
 
@@ -131,7 +144,7 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        light = None
+        light = True # None
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
