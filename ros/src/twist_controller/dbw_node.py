@@ -100,7 +100,7 @@ class DBWNode(object):
         self.px = msg.pose.position.x
         self.py = msg.pose.position.y
         self.psi =  2.0 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
-        rospy.logerr("x: {}  y: {}  psi: {}".format(self.px, self.py, self.psi))
+        #rospy.logerr("x: {}  y: {}  psi: {}".format(self.px, self.py, self.psi))
 
     def throttle_report_cb(self, msg):
         self.throttle = msg.data

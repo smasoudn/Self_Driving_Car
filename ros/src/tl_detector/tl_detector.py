@@ -11,8 +11,17 @@ import tf
 import cv2
 import yaml
 import matplotlib.pyplot as plt
+from scipy import spatial
+import numpy as np
+import math
+import pickle
 
+
+# constants
 STATE_COUNT_THRESHOLD = 3
+INF = 999999
+
+
 
 class TLDetector(object):
     def __init__(self):
@@ -49,22 +58,34 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
-
-
-        plt.axis([-100, 100, -100, 100])
-        self.axes = plt.gca()        
-        plt.ion()
+        self.kdtree = []
+        self.previous_dist_to_tl = None
+        
+        self.tl_idx = {}
+        self.training_data = []
+        self.d_cnt = 0
+        self.set_cnt = 0
 
         rospy.spin()
+
+
 
     def pose_cb(self, msg):
         self.pose = msg
 
+
+
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
+        if self.waypoints and len(self.kdtree) == 0:
+            self.fill_up_kdtree()
+
+
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
+
+
 
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
@@ -79,8 +100,6 @@ class TLDetector(object):
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")        
         cv2.imshow("camera", cv_image)
         cv2.waitKey(1)
-
-
 
         light_wp, state = self.process_traffic_lights()
 
@@ -102,6 +121,8 @@ class TLDetector(object):
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
 
+
+
     def get_closest_waypoint(self, pose):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
@@ -113,9 +134,27 @@ class TLDetector(object):
 
         """
         #TODO implement
-        return 0
+        dist, idx = self.kdtree.query([pose.position.x, pose.position.y])
+        wp_x = self.waypoints.waypoints[idx].pose.pose.position.x
+        wp_y = self.waypoints.waypoints[idx].pose.pose.position.y
+        
+        car_x = self.pose.pose.position.x
+        car_y = self.pose.pose.position.y
+        car_theta = 2.0 * np.arccos(self.pose.pose.orientation.w)
+        if car_theta > np.pi:
+            car_theta = - (2.0 * np.pi - car_theta)
+        
+        heading = np.arctan2((wp_y - car_y), (wp_x  - car_x))
+        angle = abs(car_theta - heading)
+        
+        if angle > np.pi / 4:
+            idx = (idx + 1) % len(self.waypoints.waypoints)
 
-    def get_light_state(self, light):
+        return idx
+
+
+
+    def get_light_state(self, light, state=TrafficLight.UNKNOWN):
         """Determines the current color of the traffic light
 
         Args:
@@ -129,11 +168,25 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")        
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        self.training_data.append((cv_image, state))
+        self.d_cnt += 1
+        if len(self.training_data) == 500:
+            rospy.logerr("======= saving  training data ==============")
+            filename = "data_" + str(self.set_cnt) + ".pkl"
+            with open(filename, "wb") as f:
+                pickle.dump(self.training_data, f)
+                rospy.logerr(">>>> Data saved <<<<")
+                self.training_data = []
+                self.d_cnt = 0
+                self.set_cnt += 1
 
-        
+
+
         #Get classification
-        return self.light_classifier.get_classification(cv_image)
+        return state #self.light_classifier.get_classification(cv_image)
+
+
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -144,20 +197,71 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        light = True # None
+        if len(self.lights) == 0:
+            return
+        
+        light = False
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
+            car_orientation = math.atan2(self.pose.pose.orientation.z, self.pose.pose.orientation.w)
 
         #TODO find the closest visible traffic light (if one exists)
+        if len(self.tl_idx) == 0:
+            for x, y in stop_line_positions:
+                stop_line = Pose()
+                stop_line.position.x = x
+                stop_line.position.y = y
+                idx = self.get_closest_waypoint(stop_line)
+                self.tl_idx[idx] = stop_line
+
+        min_dist = INF
+        min_idx = 0
+        for idx, pos in self.tl_idx.items():
+            dist  = self.distance(pos, self.pose.pose)
+            if  dist < min_dist:
+                min_dist = dist
+                min_idx = idx
+        
+        state_gt = None
+        for lt in self.lights:
+            dist = self.distance(lt.pose.pose, self.tl_idx[min_idx])
+            if dist <= 40:
+                state_gt = lt.state
+
+        if (self.previous_dist_to_tl == None or self.previous_dist_to_tl - min_dist >= 0.0) and min_dist <= 170.0: 
+            light = True
+            #rospy.logerr("========= idx: {}    dist: {} =====".format(min_idx, self.distance(self.tl_idx[min_idx], self.pose.pose)))
+        else:
+            light = False
+            #rospy.logerr("========= idx: {}    dist: {} =====".format(min_idx, -1))
+        self.previous_dist_to_tl = min_dist
 
         if light:
-            state = self.get_light_state(light)
-            return light_wp, state
-        self.waypoints = None
+            state = self.get_light_state(light, state_gt)
+            return min_idx, state
         return -1, TrafficLight.UNKNOWN
+
+
+
+    def fill_up_kdtree(self):
+        wps = []
+        for i, wp in enumerate(self.waypoints.waypoints):
+            x = wp.pose.pose.position.x
+            y = wp.pose.pose.position.y
+            wps.append([x,y])
+        self.kdtree = spatial.KDTree(np.array(wps))
+
+
+
+    def distance(self, a, b):
+        dx = (a.position.x - b.position.x)
+        dy = (a.position.y - b.position.y)
+        return np.sqrt(dx * dx + dy * dy)
+
+
 
 if __name__ == '__main__':
     try:
