@@ -2,12 +2,29 @@
 #define MPC_H
 
 #include <vector>
+
+
+#include <cppad/cppad.hpp>
+#include <cppad/ipopt/solve.hpp>
+
 #include "Eigen-3.3/Eigen/Core"
+
+typedef CPPAD_TESTVECTOR(double) Dvector;
 
 using namespace std;
 
+// TODO: Set the timestep length and duration
+
+
+
 class MPC {
  public:
+  Dvector vars;
+  Dvector vars_lowerbound;
+  Dvector vars_upperbound;
+  Dvector constraints_lowerbound;
+  Dvector constraints_upperbound;
+
   MPC();
 
   virtual ~MPC();

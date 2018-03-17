@@ -9,9 +9,14 @@
 #include "MPC.h"
 #include "mpc/mpc.h"
 
-
-const double Lf = 2.67;
-extern size_t  N;
+/* // test track
+double Lf = 2.67;
+size_t N = 20;        // Choosing a large period (N*dt) causes a big error in tranjectory  estimation
+double dt = 0.07;
+*/
+double Lf = 2.67;
+size_t N = 4;        // Choosing a large period (N*dt) causes a big error in tranjectory  estimation
+double dt = 0.07;
 
 
 // For converting back and forth between radians and degrees.
@@ -61,7 +66,7 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
 bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
   vector<double> ptsx = req.ptsx;
   vector<double> ptsy = req.ptsy;
-  
+
   double px = req.px;
   double py = req.py;
   double psi = req.psi;
@@ -74,18 +79,18 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
 
   //  MPC initialized
   MPC mpc_agent;
-  
-  
+
+
   vector<double> next_x_val;
   vector<double> next_y_val;
-  
+
   // Global to vehicle coordinate transformation
   Eigen::VectorXd _ptsx(ptsx.size());
   Eigen::VectorXd _ptsy(ptsy.size());
   for (int i = 0; i < ptsx.size(); ++i){
     _ptsx[i] = (ptsx[i] - px)  * cos(psi) + (ptsy[i] - py) * sin(psi);
     _ptsy[i] = -(ptsx[i] - px) * sin(psi) + (ptsy[i] - py) * cos(psi);
-    
+
     next_x_val.push_back(_ptsx[i]);
     next_y_val.push_back(_ptsy[i]);
   }
@@ -110,15 +115,15 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
 
 
   auto coeffs = polyfit(_ptsx, _ptsy, 3);
-  
+
   double cte = polyeval(coeffs, x) - y;
   double epsi = psi - atan(coeffs[1]);
-  
-  
+
+
   /*
   double wp_angle_x = 0.1;
   double wp_angle_y = 0.0;
-  
+
   if (100 < _ptsx.size())
   {
       wp_angle_x  = _ptsx[100] - _ptsx[0];
@@ -126,12 +131,12 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
   }
   double vector_to_wp_x = _ptsx[0] - x;
   double vector_to_wp_y = _ptsy[0] - y;
-  
+
   double len_wp_angle = sqrt(wp_angle_x * wp_angle_x + wp_angle_y * wp_angle_y);
   double len_vector_to_wp = sqrt(vector_to_wp_x * vector_to_wp_x + vector_to_wp_y * vector_to_wp_y);
-  
+
   double cte = (vector_to_wp_x * wp_angle_y - vector_to_wp_y * wp_angle_x) / len_wp_angle;
-  
+
   wp_angle_x = 0.1;
   wp_angle_y = 0.0;
   double epsi = 0.0;
@@ -140,12 +145,11 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
       wp_angle_x  = _ptsx[10] - _ptsx[0];
       wp_angle_y  = _ptsy[10] - _ptsy[0];
       epsi = psi - atan2(wp_angle_y, wp_angle_x);
-    
+
   }
   */
 
 
-  cout << "cte: " << cte << "    epsi:" << epsi*180 / 3.14 << endl;
 
   Eigen::VectorXd state(6);
   state << x, y, psi, v, cte, epsi;
@@ -153,17 +157,19 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
 
   vector<double> result = mpc_agent.Solve(state, coeffs);
 
+  ROS_INFO("cte: %f      epsi: %f      steer: %f", cte, epsi*180 / 3.14, result[0]);
+
 
   res.steering = result[0] / deg2rad(25);
   res.throttle = result[1];
-  
+
   vector<double> mpc_x(result.begin()+2, result.begin()+2+N);
   vector<double> mpc_y(result.begin()+2+N, result.end());
-  
+
   res.mpc_x = mpc_x;
   res.mpc_y = mpc_y;
-  
-  
+
+
   return true;
 }
 
@@ -171,13 +177,13 @@ bool mpc_cb(mpc::mpc::Request &req, mpc::mpc::Response &res){
 
 // Main
 //////////////////////////////////////////////////////////////////
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
   ros::init(argc, argv, "mpc_server");
   ros::NodeHandle n;
-  
+
   ros::ServiceServer service = n.advertiseService("mpc_service", mpc_cb);
   ROS_INFO("MPC is ready ...");
-  
+
   ros::spin();
 }

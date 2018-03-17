@@ -154,7 +154,7 @@ class TLDetector(object):
 
 
 
-    def get_light_state(self, light, state=TrafficLight.UNKNOWN):
+    def get_light_state(self, light, state=TrafficLight.UNKNOWN, flag=True):
         """Determines the current color of the traffic light
 
         Args:
@@ -169,9 +169,14 @@ class TLDetector(object):
             return False
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-        self.training_data.append((cv_image, state))
+        if flag:
+            self.training_data.append((cv_image, state))
+        elif (not flag) and (self.d_cnt % 20 == 0):
+            self.training_data.append((cv_image, TrafficLight.UNKNOWN))
+
         self.d_cnt += 1
-        if len(self.training_data) == 500:
+
+        if len(self.training_data) == 1000:
             rospy.logerr("======= saving  training data ==============")
             filename = "data_" + str(self.set_cnt) + ".pkl"
             with open(filename, "wb") as f:
@@ -233,14 +238,14 @@ class TLDetector(object):
 
         if (self.previous_dist_to_tl == None or self.previous_dist_to_tl - min_dist >= 0.0) and min_dist <= 170.0: 
             light = True
-            #rospy.logerr("========= idx: {}    dist: {} =====".format(min_idx, self.distance(self.tl_idx[min_idx], self.pose.pose)))
+            rospy.logerr("========= idx: {}    state: {}     dist: {} =====".format(min_idx, state_gt, self.distance(self.tl_idx[min_idx], self.pose.pose)))
         else:
             light = False
             #rospy.logerr("========= idx: {}    dist: {} =====".format(min_idx, -1))
         self.previous_dist_to_tl = min_dist
 
+        state = self.get_light_state(light, state_gt, light)
         if light:
-            state = self.get_light_state(light, state_gt)
             return min_idx, state
         return -1, TrafficLight.UNKNOWN
 
