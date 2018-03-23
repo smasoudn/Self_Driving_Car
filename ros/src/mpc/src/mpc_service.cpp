@@ -14,9 +14,9 @@ double Lf = 2.67;
 size_t N = 20;        // Choosing a large period (N*dt) causes a big error in tranjectory  estimation
 double dt = 0.07;
 */
-double Lf = 2.67;
-size_t N = 4;        // Choosing a large period (N*dt) causes a big error in tranjectory  estimation
-double dt = 0.07;
+double Lf = 4.67;
+size_t N = 20;        // Choosing a large period (N*dt) causes a big error in tranjectory  estimation
+double dt = 0.2;
 
 
 // For converting back and forth between radians and degrees.

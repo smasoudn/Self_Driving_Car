@@ -5,15 +5,12 @@ from std_msgs.msg import Bool, Float32
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped
 import math
-import numpy as np
 
 from twist_controller import Controller
 
 from std_msgs.msg import Bool
 from styx_msgs.msg import Lane
 from geometry_msgs.msg import PoseStamped
-from tf.transformations import euler_from_quaternion
-
 
 '''
 You can build this node only after you have built (or partially built) the `waypoint_updater` node.
@@ -37,11 +34,7 @@ Once you have the proposed throttle, brake, and steer values, publish it on the 
 that we have created in the `__init__` function.
 
 '''
-Kp = 0.607900;     #  Causes the car  react to sharp turns faster but makes it oscillats and unstable
-Kd =  1.640951;     #  Prevents car from oscillating
-Ki = .0001;  #  Reduce the biase gradually
-    
-    
+
 class DBWNode(object):
     def __init__(self):
         rospy.init_node('dbw_node')
@@ -65,13 +58,11 @@ class DBWNode(object):
                                          BrakeCmd, queue_size=1)
 
         # TODO: Create `Controller` object
-        self.steer_controller = Controller(Kp, Ki, Kd)
-        self.speed_controller = Controller(Kp, Ki, Kd)
+        self.controller = Controller()
         self.twist_cmd = None
         self.waypoints = None
         self.dbw_enabled = None
-        self.cte = 0.0
-
+        
         self.ptsx = []
         self.ptsy = [] 
         self.px = 0.0
@@ -106,7 +97,6 @@ class DBWNode(object):
         self.waypoints = msg.waypoints
 
     def current_pose_cb(self, msg):
-        self.pose = msg.pose
         self.px = msg.pose.position.x
         self.py = msg.pose.position.y
         self.psi =  2.0 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
@@ -126,11 +116,16 @@ class DBWNode(object):
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
             if self.dbw_enabled:
-                self.get_cte()
-                self.steer_controller.update_error(self.cte);
-                steering = self.steer_controller.control();          
-                throttle = 0.2
-                brake = 0.0
+                throttle, brake, steering = self.controller.control(self.ptsx, 
+                                                                self.ptsy, 
+                                                                self.px, 
+                                                                self.py, 
+                                                                self.psi, 
+                                                                self.speed, 
+                                                                self.steering, 
+                                                                self.throttle
+                                                                )
+
                 self.publish(throttle, brake, steering)
             rate.sleep()
 
@@ -151,30 +146,6 @@ class DBWNode(object):
         bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
-
-
-    
-    def get_cte(self):
-        quaternion = [self.pose.orientation.x,
-                  self.pose.orientation.y,
-                  self.pose.orientation.z,
-                  self.pose.orientation.w]
-        _, _, angle = euler_from_quaternion(quaternion)
-
-
-        
-        heading_waypoints_x = []
-        heading_waypoints_y = []
-
-        for i in range(20):
-            translated_x = self.waypoints[i].pose.pose.position.x - self.pose.position.x
-            translated_y = self.waypoints[i].pose.pose.position.y - self.pose.position.y
-
-            heading_waypoints_x.append(translated_x * math.cos(0 - angle) - translated_y * math.sin(0 - angle))
-            heading_waypoints_y.append(translated_x * math.sin(0 - angle) + translated_y * math.cos(0 - angle))
-
-        fit = np.poly1d(np.polyfit(heading_waypoints_x, heading_waypoints_y, 2))
-        self.cte = fit(2)
 
 
 if __name__ == '__main__':

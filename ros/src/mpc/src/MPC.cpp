@@ -32,7 +32,7 @@ const int n_constraints = N * NUMBER_OF_STATES; // number of constraints
 // The reference velocity is set to 40 mph.
 double ref_cte = 0;
 double ref_epsi = 0;
-double ref_v = 2.0;
+double ref_v = 1.0;
 
 /* track
 // Cost weights
@@ -46,13 +46,13 @@ const double w_dif_str = 3000.0;
 */
 
 // Cost weights
-const double w_cte = 10.0;
-const double w_epsi = 50.0;
+const double w_cte = 30000.0;
+const double w_epsi = 3000.0;
 const double w_v = 3000.0;
 const double w_thr = 10.0;
 const double w_str = 1.0;
-const double w_dif_thr = 10.0;
-const double w_dif_str = 10.0;
+const double w_dif_thr = 1.0;
+const double w_dif_str = 1.0;
 
 
 // The solver takes all the state variables and actuator
