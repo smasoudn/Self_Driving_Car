@@ -1,18 +1,14 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import Bool, Float32
-from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
+from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd
 from geometry_msgs.msg import TwistStamped
-import math
-import numpy as np
+
 
 from twist_controller import Controller
 
 from std_msgs.msg import Bool
-from styx_msgs.msg import Lane
-from geometry_msgs.msg import PoseStamped
-from tf.transformations import euler_from_quaternion
+
 
 
 '''
@@ -37,10 +33,7 @@ Once you have the proposed throttle, brake, and steer values, publish it on the 
 that we have created in the `__init__` function.
 
 '''
-Kp = 0.607900;     #  Causes the car  react to sharp turns faster but makes it oscillats and unstable
-Kd =  1.640951;     #  Prevents car from oscillating
-Ki = .0001;  #  Reduce the biase gradually
-    
+
     
 class DBWNode(object):
     def __init__(self):
@@ -56,6 +49,12 @@ class DBWNode(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
+        loop_freq = rospy.get_param('~loop_freq', 2)
+        self.dt = 1. / loop_freq
+        self.dbw_enabled = False
+        self.current_velocity = None
+        self.desired_velocity = None
+
 
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
                                          SteeringCmd, queue_size=1)
@@ -65,60 +64,41 @@ class DBWNode(object):
                                          BrakeCmd, queue_size=1)
 
         # TODO: Create `Controller` object
-        self.steer_controller = Controller(Kp, Ki, Kd)
-        self.speed_controller = Controller(Kp, Ki, Kd)
-        self.twist_cmd = None
-        self.waypoints = None
-        self.dbw_enabled = None
-        self.cte = 0.0
+        self.controller = Controller(vehicle_mass=vehicle_mass,
+                                          fuel_capacity=fuel_capacity,
+                                          brake_deadband=brake_deadband,
+                                          decel_limit=decel_limit,
+                                          accel_limit=accel_limit,
+                                          wheel_radius=wheel_radius,
+                                          wheel_base=wheel_base,
+                                          steer_ratio=steer_ratio,
+                                          max_lat_accel=max_lat_accel,
+                                          max_steer_angle=max_steer_angle,
+                                          sample_period=self.dt)
 
-        self.ptsx = []
-        self.ptsy = [] 
-        self.px = 0.0
-        self.py = 0.0
-        self.psi = 0.0 
-        self.speed = 0.0 
-        self.steering = 0.0 
-        self.throttle = 0.0
+
         
         # TODO: Subscribe to all the topics you need to
         rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=3)
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb)
-        rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb)
-        rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb)
-        rospy.Subscriber('/vehicle/throttle_report', Float32 , self.throttle_report_cb)
-        rospy.Subscriber('/vehicle/steering_report', SteeringReport, self.steering_report_cb)
+
 
         self.loop()
 
     def twist_cmd_cb(self, msg):
-        self.twist_cmd = msg.twist
+        self.desired_velocity = msg.twist
+
+    def current_velocity_cb(self, msg):
+        self.current_velocity = msg.twist
 
     def dbw_enabled_cb(self, msg):
         self.dbw_enabled = msg.data
-
-    def waypoints_cb(self, msg):
-        self.ptsx = []
-        self.ptsy = []
-        for i in range(len(msg.waypoints)):
-            self.ptsx.append(msg.waypoints[i].pose.pose.position.x)
-            self.ptsy.append(msg.waypoints[i].pose.pose.position.y)
-        self.waypoints = msg.waypoints
-
-    def current_pose_cb(self, msg):
-        self.pose = msg.pose
-        self.px = msg.pose.position.x
-        self.py = msg.pose.position.y
-        self.psi =  2.0 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
-        #rospy.logerr("x: {}  y: {}  psi: {}".format(self.px, self.py, self.psi))
-
-    def throttle_report_cb(self, msg):
-        self.throttle = msg.data
+        self.controller.velocity_pid.reset()
+        #self.controller.lowpass_filter.reset()
 
 
-    def steering_report_cb(self, msg):
-        self.steering = msg.steering_wheel_angle
-        self.speed = msg.speed
+
 
     def loop(self):
         rate = rospy.Rate(50) # 50Hz
@@ -126,12 +106,10 @@ class DBWNode(object):
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
             if self.dbw_enabled:
-                self.get_cte()
-                self.steer_controller.update_error(self.cte);
-                steering = self.steer_controller.control();          
-                throttle = 0.2
-                brake = 0.0
-                self.publish(throttle, brake, steering)
+                if self.desired_velocity and self.current_velocity:
+                    throttle, brake, steering = self.controller.control(self.desired_velocity, self.current_velocity, self.dt)
+                    self.publish(throttle, brake, steering)
+            self.desired_velocity = None
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
@@ -152,29 +130,6 @@ class DBWNode(object):
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
 
-
-    
-    def get_cte(self):
-        quaternion = [self.pose.orientation.x,
-                  self.pose.orientation.y,
-                  self.pose.orientation.z,
-                  self.pose.orientation.w]
-        _, _, angle = euler_from_quaternion(quaternion)
-
-
-        
-        heading_waypoints_x = []
-        heading_waypoints_y = []
-
-        for i in range(20):
-            translated_x = self.waypoints[i].pose.pose.position.x - self.pose.position.x
-            translated_y = self.waypoints[i].pose.pose.position.y - self.pose.position.y
-
-            heading_waypoints_x.append(translated_x * math.cos(0 - angle) - translated_y * math.sin(0 - angle))
-            heading_waypoints_y.append(translated_x * math.sin(0 - angle) + translated_y * math.cos(0 - angle))
-
-        fit = np.poly1d(np.polyfit(heading_waypoints_x, heading_waypoints_y, 2))
-        self.cte = fit(2)
 
 
 if __name__ == '__main__':
