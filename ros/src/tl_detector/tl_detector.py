@@ -246,7 +246,7 @@ class TLDetector(object):
 
         state = self.get_light_state(light, state_gt, light)
         if light:
-            return min_idx, state
+            return min_idx, state_gt # TODO: state_gt --> state
         return -1, TrafficLight.UNKNOWN
 
 

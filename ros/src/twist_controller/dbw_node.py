@@ -94,8 +94,7 @@ class DBWNode(object):
 
     def dbw_enabled_cb(self, msg):
         self.dbw_enabled = msg.data
-        self.controller.velocity_pid.reset()
-        #self.controller.lowpass_filter.reset()
+        self.controller.velocity_controller.reset()
 
 
 

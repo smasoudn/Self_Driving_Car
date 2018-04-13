@@ -28,10 +28,10 @@ class Controller(object):
         self.max_lat_accel = max_lat_accel
         self.max_steer_angle = max_steer_angle
         # TODO: Implement
-        self.velocity_pid = PID(0.65, 0.0, 0.0, mn=-1.0, mx=1.0)
+        self.velocity_controller = PID(0.65, 0.0, 0.0, mn=-1.0, mx=1.0)
         self.yaw_controller = YawController(wheel_base, steer_ratio, 1,
                                             max_lat_accel, max_steer_angle)
-        self.lowpass_filter = LowPassFilter(tau=0.5, ts=0.1)  # tau = 0.15 self.sample_time = 0.03 or self.sample_period
+        self.lowpass_filter = LowPassFilter(tau=0.5, ts=0.1)
 
 
 
@@ -39,7 +39,7 @@ class Controller(object):
         # TODO: Change the arg, kwarg list to suit your needs
         # Return throttle, brake, steer
         velocity_cte = abs(twist.linear.x) - current_velocity.linear.x
-        acceleration = self.velocity_pid.step(velocity_cte, dt)
+        acceleration = self.velocity_controller.step(velocity_cte, dt)
 
         steer_delta = self.yaw_controller.get_steering(
             twist.linear.x,
