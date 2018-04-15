@@ -241,7 +241,7 @@ class TLDetector(object):
             rospy.logerr("========= idx: {}    state: {}     dist: {} =====".format(min_idx, state_gt, self.distance(self.tl_idx[min_idx], self.pose.pose)))
         else:
             light = False
-            #rospy.logerr("========= idx: {}    dist: {} =====".format(min_idx, -1))
+
         self.previous_dist_to_tl = min_dist
 
         state = self.get_light_state(light, state_gt, light)

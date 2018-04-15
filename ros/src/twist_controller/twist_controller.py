@@ -28,7 +28,7 @@ class Controller(object):
         self.max_lat_accel = max_lat_accel
         self.max_steer_angle = max_steer_angle
         # TODO: Implement
-        self.velocity_controller = PID(0.65, 0.0, 0.0, mn=-1.0, mx=1.0)
+        self.velocity_controller = PID(0.75, 0.0, 0.0, mn=-1.0, mx=1.0)
         self.yaw_controller = YawController(wheel_base, steer_ratio, 1,
                                             max_lat_accel, max_steer_angle)
         self.lowpass_filter = LowPassFilter(tau=0.5, ts=0.1)
