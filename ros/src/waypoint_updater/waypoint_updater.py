@@ -133,8 +133,7 @@ class WaypointUpdater(object):
                 return lane
 
             lane.waypoints = self.decelerate_wps(lane.waypoints, closest_idx)
-            rospy.logerr(">>>>>>>>>>>>  {}    {}    <<<<<<<<<<<<".format(self.get_waypoint_velocity(self.waypoints[closest_idx]),
-                                                                     self.get_waypoint_velocity(lane.waypoints[0])))
+
         return lane
 
 
